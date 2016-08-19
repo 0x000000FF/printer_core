@@ -3,9 +3,12 @@
 
 #include <unistd.h>
 #include <iostream>
+#include <fstream>
 #include <exception>
 #include "mraa.hpp"
 #include <QString>
+#include <sstream>
+
 
 #define ERROR     (-1)
 #define READY       0
@@ -14,12 +17,29 @@
 #define LEVELING    3
 #define HEATING     4
 
+#define RESET_PIN_NUM          36      //mraa 36,linux pin 14
+
+#define RECV_BUFFER_LEN        255
+#define GCODE_LEN              128
+#define UART_READ_TIME_OUT     10      //ms
+#define UART_CONNECT_TIME_OUT  10000   //ms
+
+
+enum GCODE_style
+{
+    UNKNOW = 0,
+    SIMPLIFY,
+    CURA,
+    SLIC3R,
+};
+
 class printer_core
 {
 private:
     int printer_state;
     bool printer_buzy;
-    QString gcode_file;
+    std::string gcode_file_path;
+    std::ifstream gcode;
 
     mraa::Uart* uart_dev;
     mraa::Gpio* reset_pin;
@@ -27,7 +47,15 @@ private:
     int error_number;
     int line_number;
 
+    char recve_buffer[RECV_BUFFER_LEN];
+    std::string gcode_line;
 
+    int layer_number;
+    GCODE_style gcode_style;
+
+public:
+    std::string get_gcode_line(int line);
+    std::string add_checksum();
 
 public:
     printer_core();
@@ -38,8 +66,10 @@ public:
     std::string read_uart(int lengtn);
     int write_uart(std::string mesg);
     int flush_uart();
+    bool uart_data_available(unsigned int time_out_millis);
     int close_uart();
 
+    int load_gcodefile(std::string file_path);
     int begin_task();
     int cancel_task();
     int pause_task();
