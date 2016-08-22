@@ -8,6 +8,8 @@
 #include "mraa.hpp"
 #include <QString>
 #include <sstream>
+#include <queue>
+#include <QTimer>
 
 
 #define ERROR     (-1)
@@ -19,7 +21,8 @@
 
 #define RESET_PIN_NUM          36      //mraa 36,linux pin 14
 
-#define RECV_BUFFER_LEN        255
+#define RECV_BUFFER_LEN        1024
+#define READ_LEN               256
 #define GCODE_LEN              128
 #define UART_READ_TIME_OUT     10      //ms
 #define UART_CONNECT_TIME_OUT  10000   //ms
@@ -33,8 +36,10 @@ enum GCODE_style
     SLIC3R,
 };
 
-class printer_core
+class printer_core : public QObject
 {
+    Q_OBJECT
+
 private:
     int printer_state;
     bool printer_buzy;
@@ -53,6 +58,10 @@ private:
     int layer_number;
     GCODE_style gcode_style;
 
+    QTimer *uart_timer;
+    std::queue<char> uart_buffer;
+    std::string str_buffer;
+
 public:
     std::string get_gcode_line(int line);
     std::string add_checksum();
@@ -63,11 +72,12 @@ public:
 
     int init_uart();
     int reset_uart();
-    std::string read_uart(int lengtn);
     int write_uart(std::string mesg);
     int flush_uart();
     bool uart_data_available(unsigned int time_out_millis);
     int close_uart();
+
+    std::string read_line();
 
     int load_gcodefile(std::string file_path);
     int begin_task();
@@ -77,6 +87,14 @@ public:
     int save_task();
 
     int get_state();
+
+signals:
+    void new_line_received(int line_count);
+
+public slots:
+    void read_uart();
+    void handel_uart(int line_count);
+
 };
 
 #endif // PTINTER_CORE_H

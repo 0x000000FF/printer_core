@@ -8,17 +8,17 @@ int main(int argc, char *argv[])
     printer_core *myprinter = new printer_core();
 
     myprinter->init_uart();
+    myprinter->reset_uart();
     std::string tmp;
 
-
     std::cout<<"begin read"<<std::endl;
-    for(;;)
-    {
-        myprinter->write_uart("hello");
-        tmp = myprinter->read_uart(6);
+//    for (;;)
+//    {
+        std::cout<<"read line"<<std::endl;
+        tmp = myprinter->read_line();
         std::cout<<tmp<<std::endl;
-        sleep(1);
-    }
+
+//    }
 
     return a.exec();
 }
