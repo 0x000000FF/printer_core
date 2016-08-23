@@ -9,6 +9,7 @@
 #include <QString>
 #include <sstream>
 #include <queue>
+#include <vector>
 #include <QTimer>
 
 
@@ -26,6 +27,19 @@
 #define GCODE_LEN              128
 #define UART_READ_TIME_OUT     10      //ms
 #define UART_CONNECT_TIME_OUT  10000   //ms
+
+#define U_OK   "ok"
+#define U_RESEND  "resend"
+
+const std::string pause_command[] =
+{
+   "M100"
+};
+
+const std::vector<std::string> resume_command =
+{
+    "G90","M82","M107","G28","G34"
+};
 
 
 enum GCODE_style
@@ -62,7 +76,15 @@ private:
     std::queue<char> uart_buffer;
     std::string str_buffer;
 
-public:
+    std::queue<std::string> send_buffer;
+
+    float position[3] = {0.0,0.0,0.0};
+    float E_temperature = 0.0;
+    float B_temperature = 0.0;
+    float E_target_temperature = 0.0;
+    float B_target_temperature = 0.0;
+
+private:
     std::string get_gcode_line(int line);
     std::string add_checksum();
 
@@ -76,7 +98,6 @@ public:
     int flush_uart();
     bool uart_data_available(unsigned int time_out_millis);
     int close_uart();
-
     std::string read_line();
 
     int load_gcodefile(std::string file_path);
@@ -85,6 +106,8 @@ public:
     int pause_task();
     int resume_task();
     int save_task();
+    int send_command();
+    int push_commands(std::string commands[]);
 
     int get_state();
 

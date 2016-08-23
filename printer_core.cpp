@@ -182,8 +182,17 @@ void printer_core::handel_uart(int line_count)
     for(int line = 0;line < line_count;line ++)
     {
         line_str = this->read_line();
-        std::cout<<line<<":"<<std::endl;
+        std::cout<<"line"<<":"<<std::endl;
         std::cout<<line_str<<std::endl;
+        if (line_str == U_OK)
+        {
+            //should send the next line Gcode
+        }
+        else
+        {
+
+        }
+
     }
 }
 
@@ -223,3 +232,21 @@ std::string printer_core::add_checksum()
     return ret;
 }
 
+int printer_core::send_command()
+{
+    std::string str = this->add_checksum();
+    this->write_uart(str);
+}
+
+int printer_core::push_commands(std::string commands[])
+{
+    unsigned int count = sizeof(commands) / sizeof(char*);
+}
+
+int printer_core::begin_task()
+{
+    if (this->printer_state == READY)
+    {
+
+    }
+}
