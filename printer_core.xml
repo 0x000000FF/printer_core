@@ -1,0 +1,12 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+        "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/com/mostfun/printer/core">
+        <interface name="com.mostfun.printer.CoreInterface">
+                <method name="load_gcodefile"/>
+                <method name="begin_task"/>
+                <method name="cancel_task"/>
+                <method name="pause_task"/>
+                <method name="resume_task"/>
+                <method name="save_task"/>
+        </interface>
+</node>

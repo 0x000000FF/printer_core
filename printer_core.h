@@ -3,22 +3,18 @@
 
 #include <unistd.h>
 #include <iostream>
-#include <fstream>
-#include <exception>
-#include "mraa.hpp"
 #include <QString>
-#include <sstream>
-#include <queue>
-#include <vector>
+#include <QQueue>
+#include <QStringList>
+#include <QTextStream>
 #include <QTimer>
+#include <QtCore>
+#include <QtCore/QObject>
 
+#include "mraa.hpp"
+#include "error_num.h"
 
-#define ERROR     (-1)
-#define READY       0
-#define PRINTING    1
-#define PAUSED      2
-#define LEVELING    3
-#define HEATING     4
+#include <QDebug>
 
 #define RESET_PIN_NUM          36      //mraa 36,linux pin 14
 
@@ -28,26 +24,52 @@
 #define UART_READ_TIME_OUT     10      //ms
 #define UART_CONNECT_TIME_OUT  10000   //ms
 
-#define U_OK   "ok"
-#define U_RESEND  "resend"
+#define KEY_WORD_SIMPLIFY      "Simplify3D"
+#define KEY_WORD_CURA          ""
+#define KEY_WORD_SLIC3R        "Slic3r"
 
-const std::string pause_command[] =
-{
-   "M100"
-};
+#define U_OK      "ok"
+#define U_RESEND  "Resend"
+#define U_ECHO    "ECHO>"
+#define U_INFO    "INFO>"
+#define U_WARN    "WARN>"
+#define U_ERROR   "ERROR>"
 
-const std::vector<std::string> resume_command =
-{
-    "G90","M82","M107","G28","G34"
-};
+//const std::string reset_command = "G28\nG29\nG1 X1 Y179.5 Z15 F4800\nG33\nG1 Z10\nG1 F4800 X110 Y90 Z1\nM160\n";
 
+//const std::string cancel_command  = "M104 S0\nG28\n";
+
+//const std::string pause_command = "M100\n";
+
+//const std::string resume_command =
+//        "G90\nM82\nM107\nG28\nG34\nG1 F6000 Zz\nG92 E0\nG1 F200 E20\nG91\nG1 X-10 Y-10 F12000\n\
+//        G1 X10 Y10\nG1 X-10 Y-10\nG1 X10 Y10\nG1 X-10 Y-10\nG90\nG1 F18000 Xx Yy\nG1 F6000 Zz\nG1 F1680 E20.4\nG92 Ee";
+
+//const std::string leveling_command = "G28\nG29\nG1 X1 Y179.5 Z15 F4800\nG33\nG1 Z10\nG1 F4800 X110 Y90 Z1\nM160\n";
 
 enum GCODE_style
 {
-    UNKNOW = 0,
-    SIMPLIFY,
-    CURA,
-    SLIC3R,
+    STYLE_UNKNOW = 0,
+    STYLE_SIMPLIFY,
+    STYLE_CURA,
+    STYLE_SLIC3R,
+};
+
+enum work_state
+{
+    STATE_UNKNOW = -2,
+    STATE_ERROR,
+    STATE_STAND_BY,
+    STATE_PRINTING,
+    STATE_PAUSE,
+    STATE_LEVELING,
+};
+
+enum ack_state
+{
+    ACK_OK = 0,
+    ACK_RESEND,
+    ACK_WAITING,
 };
 
 class printer_core : public QObject
@@ -56,37 +78,49 @@ class printer_core : public QObject
 
 private:
     int printer_state;
-    bool printer_buzy;
-    std::string gcode_file_path;
-    std::ifstream gcode;
+    int task_state;
+    int is_heating;
+    int  ack_flag;
+    QString gcode_file_path;
+    QFile gcode_f;
+    QTextStream gcode_stream;
 
     mraa::Uart* uart_dev;
     mraa::Gpio* reset_pin;
 
     int error_number;
     int line_number;
-
-    char recve_buffer[RECV_BUFFER_LEN];
-    std::string gcode_line;
+    int line_count;
+    int gcode_file_line;
 
     int layer_number;
+    int layer_count;
     GCODE_style gcode_style;
 
     QTimer *uart_timer;
-    std::queue<char> uart_buffer;
-    std::string str_buffer;
+    QQueue<char> uart_buffer;
 
-    std::queue<std::string> send_buffer;
+    QQueue<QString> send_buffer;
 
-    float position[3] = {0.0,0.0,0.0};
-    float E_temperature = 0.0;
-    float B_temperature = 0.0;
-    float E_target_temperature = 0.0;
-    float B_target_temperature = 0.0;
+    bool gcode_lock;
+    float current_position[3] = {0.0,0.0,0.0};
+    int cuttent_F = 0.0;
+    float current_E = 0.0;
+    float E_temperature[2] = {0.0,0.0};
+    float B_temperature[2] = {0.0,0.0};
+
+    QList<int> layer_position;
+
+    QTimer *temper_timer;
+
+    void change_state(int state);
 
 private:
-    std::string get_gcode_line(int line);
-    std::string add_checksum();
+    QString get_gcode_line_frome_file();
+    QString get_new_command();
+    int analyse_uart(QString mesg);
+    QString add_checksum(QString gcode);
+    QString generate_gcode(QString);
 
 public:
     printer_core();
@@ -94,29 +128,35 @@ public:
 
     int init_uart();
     int reset_uart();
-    int write_uart(std::string mesg);
+    int write_uart(QString mesg);
     int flush_uart();
     bool uart_data_available(unsigned int time_out_millis);
     int close_uart();
-    std::string read_line();
+    QString read_line();
 
-    int load_gcodefile(std::string file_path);
+    int send_command(QString command);
+    int push_commands(QString commands);
+
+    int get_state();
+
+public Q_SLOTS:
+    int load_gcodefile(QString file_path);
     int begin_task();
     int cancel_task();
     int pause_task();
     int resume_task();
     int save_task();
-    int send_command();
-    int push_commands(std::string commands[]);
 
-    int get_state();
+Q_SIGNALS: // SIGNALS
+    void machine_state_change(int state);
+    void task_state_change(int state);
 
 signals:
-    void new_line_received(int line_count);
+    void new_line_received();
 
 public slots:
     void read_uart();
-    void handel_uart(int line_count);
+    void handel_uart();
 
 };
 
